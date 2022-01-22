@@ -148,7 +148,6 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename){
 	
 	free(DATA_packet);
 	fclose(file);
-	
-	exit(EXIT_SUCCESS);
+
 }
 
