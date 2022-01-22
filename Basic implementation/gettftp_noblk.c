@@ -81,7 +81,7 @@ int TFTPconnect(struct addrinfo **srv_addr, char* ip_addr, char* port){
 /* RRQ format:
  2 bytes     string    1 byte     string   1 byte
  ------------------------------------------------
-| Opcode |  Filename  |   0  |    Mode    |   0  |
+|   01   |  Filename  |   0  |    Mode    |   0  |
  ------------------------------------------------ 
 */
 
