@@ -1,17 +1,17 @@
-CC=gcc
-CFLAGS=-W -Wall
-EXEC=gettftp
+SRC = $(wildcard *.c)
+BIN = $(patsubst %.c,%,$(SRC))
 
-all: $(EXEC)
+CFLAGS += -Werror -Wall -Wextra -g
+#CFLAGS += --std=c99
 
-gettftp: gettftp.o
-	$(CC) -o gettftp gettftp.o
-
-gettftp.o: gettftp.c
-	$(CC) -o gettftp.o -c gettftp.c $(CFLAGS)
+all: $(BIN)
 
 clean:
-	rm -rf *.o
+	rm -f $(BIN)
+	rm -f *.o
+	rm -f *~
 
-mrproper: clean
-	rm -rf gettftp
+indent:
+	indent -linux -i4 -nut -ts2 *.c
+
+.PHONY: all clean indent
