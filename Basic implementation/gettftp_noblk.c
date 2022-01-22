@@ -24,7 +24,7 @@ int main ( int argc , char * argv[] ) {
 	char* port;
 	
 	if(argc != 3){
-		printf("Error: missing argument\nUsage: ./gettftp [address] [filename]\n");
+		printf("Error: missing argument\nUsage: ./gettftp address[:port] filename\n");
 		exit(EXIT_FAILURE);
 	}
 	
