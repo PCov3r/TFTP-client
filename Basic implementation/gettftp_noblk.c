@@ -162,7 +162,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename){
 			exit(EXIT_FAILURE);
 		}
 		
-		ACK_packet[2]=DATA_packet[2]; // Build ACK packet: add block n°
+		ACK_packet[2]=DATA_packet[2]; // Build ACK packet: add block #
 		ACK_packet[3]=DATA_packet[3];
 		
 		if(sendto(sfd,ACK_packet,ACK_LENGTH,0,srv_addr->ai_addr,srv_addr->ai_addrlen) == -1){ // Send ACK packet
