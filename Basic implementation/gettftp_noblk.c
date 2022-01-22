@@ -123,7 +123,7 @@ void sendRRQ(struct addrinfo *srv_addr, int sfd, char *filename){
 /* DATA PACKET format:
  2 bytes     2 bytes      n bytes
  ----------------------------------
-| Opcode |   Block #  |   Data     |
+|   03   |   Block #  |   Data     |
  ----------------------------------
  */
 
