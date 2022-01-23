@@ -298,7 +298,7 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_size
 	free(ACK_packet);
 	fclose(file);
 	
-	fprintf(stdout, "\nSuccessfully sent entire file\n");
+	fprintf(stdout, "\n*** Successfully sent entire file ***\n");
 	
 }
 
