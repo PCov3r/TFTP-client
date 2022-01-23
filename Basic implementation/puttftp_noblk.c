@@ -112,20 +112,23 @@ void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename){
 	wrq_length = makeWRQ(filename, &wrq); // Form a WRQ
 
 	if(sendto(sfd, wrq, wrq_length, 0, (struct sockaddr *) srv_addr->ai_addr, srv_addr->ai_addrlen) == -1){ // Send WRQ
-			perror("CLIENT: sendto");
-			exit(EXIT_FAILURE);
+		perror("CLIENT: sendto");
+		close(sfd);
+		exit(EXIT_FAILURE);
 	}
 	free(wrq);
 	
 	if((received_size = recvfrom(sfd,WRQ_response,DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive packet # into buffer
-			perror("Unable to receive ack:");
-			exit(EXIT_FAILURE);
+		perror("Unable to receive ack:");
+		close(sfd);
+		exit(EXIT_FAILURE);
 	}
 	
 	if(WRQ_response[0] == 0 && WRQ_response[1] == 4 && WRQ_response[2] == 0 && WRQ_response[3] == 0){ // Check if WRQ accepted ie the ACK has Block # = 0
 		fprintf(stdout, "Ready to send file\n");
 	} else {
 		fprintf(stderr, "Wrong ack received, something went wrong\n");
+		close(sfd);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -154,6 +157,7 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename){
 	
 	if(file == NULL){
 		perror("Could not open specified file:");
+		close(sfd);
 		exit(EXIT_FAILURE);
 	}
 	
@@ -175,12 +179,14 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename){
 		
 		if((received_size = recvfrom(sfd,ACK_packet,DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive ack packet into buffer
 			perror("Unable to receive ack:");
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 		
 		if(ACK_packet[0]=='0' && ACK_packet[1]=='5'){ // Check for error packet
 			fprintf(stderr,"Received error packet with code %d%d\n",ACK_packet[2],ACK_packet[3]);
 			fwrite(ACK_packet+4, sizeof(char),received_size-5, stdout);  // Print error packet message
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 
