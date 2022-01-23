@@ -13,8 +13,8 @@ const char delim[1] = ":";
 
 int TFTPconnect(struct addrinfo **srv_addr, char* ip_addr, char* port);
 int makeWRQ(char *filename, char** wrq);
-void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename, int data_size);
-void sendWRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_size, int data_size);
+void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename);
+void sendWRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_size, int* data_size);
 void send_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_size);
 
 
@@ -28,7 +28,7 @@ int main ( int argc , char * argv[] ) {
 	char* filename;
 	
 	if(argc < 3){
-		printf("Error: missing argument\nUsage: ./gettftp address[:port] filename\n");
+		printf("Error: missing argument\nUsage: ./gettftp address[:port] filename [block_size]\n");
 		exit(EXIT_FAILURE);
 	}
 	
@@ -42,17 +42,20 @@ int main ( int argc , char * argv[] ) {
 	
     sfd = TFTPconnect(&srv_addr, ip, port); // Establish connection to the server using the given arguments
     
-    if(argc > 3){ // Contains block size
+    if(argc > 3){ // Contains block size arg
 		blk_size= atoi(argv[3]);
+		
 		if((blk_size < 8) || (blk_size > 65464)){
 			fprintf(stderr, "Block size must be between 8 and 65464 bytes\n");
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
-		data_size = blk_size + 4;
-		sendWRQ_blk(srv_addr, sfd, filename, argv[3], data_size);
+		
+		data_size = blk_size + 4; // DATA packet size is block size + 4
+		sendWRQ_blk(srv_addr, sfd, filename, argv[3], &data_size); // WRQ with blksize flag
 	} else {
 		data_size = DEFAULT_DATA_LENGTH;
-		sendWRQ(srv_addr, sfd, filename, data_size);
+		sendWRQ(srv_addr, sfd, filename);
 	}
 	
 	send_data(srv_addr, sfd, filename,data_size);
@@ -119,22 +122,24 @@ int makeWRQ(char *filename, char** wrq){
 
 /* Send a write request to the server */
 
-void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename, int data_size){
+void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename){
 	char* wrq;
 	int wrq_length;
-	char WRQ_response[data_size];
+	char WRQ_response[DEFAULT_DATA_LENGTH];
 	int received_size;
 	
 	wrq_length = makeWRQ(filename, &wrq); // Form a WRQ
 
 	if(sendto(sfd, wrq, wrq_length, 0, (struct sockaddr *) srv_addr->ai_addr, srv_addr->ai_addrlen) == -1){ // Send WRQ
 			perror("CLIENT: sendto");
+			close(sfd);
 			exit(EXIT_FAILURE);
 	}
 	free(wrq);
 	
-	if((received_size = recvfrom(sfd,WRQ_response,data_size,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive packet # into buffer
+	if((received_size = recvfrom(sfd,WRQ_response,DEFAULT_DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive packet # into buffer
 			perror("Unable to receive ack:");
+			close(sfd);
 			exit(EXIT_FAILURE);
 	}
 	
@@ -142,6 +147,7 @@ void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename, int data_size){
 		fprintf(stdout, "Ready to send file\n");
 	} else {
 		fprintf(stderr, "Wrong ack received, something went wrong\n");
+		close(sfd);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -154,11 +160,13 @@ void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename, int data_size){
  +------+---~~---+---+---~~---+---+---~~---+---+---~~---+---+
 */
 
-void sendWRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_size, int data_size){
+void sendWRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_size, int* data_size){
 	char* wrq;
 	int wrq_length;
-	char WRQ_response[data_size];
+	char* WRQ_response;
 	int received_size;
+	
+	WRQ_response = malloc(DEFAULT_DATA_LENGTH*sizeof(char));
 	
 	wrq_length = makeWRQ(filename, &wrq); // Form a WRQ
 	wrq = realloc(wrq, wrq_length+(strlen(blk_size)+9)*sizeof(char)); // Add memory for blk option
@@ -172,21 +180,43 @@ void sendWRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_s
 	
 	if(sendto(sfd, wrq, wrq_length, 0, (struct sockaddr *) srv_addr->ai_addr, srv_addr->ai_addrlen) == -1){ // Send WRQ
 			perror("CLIENT: sendto");
+			close(sfd);
 			exit(EXIT_FAILURE);
 	}
 	free(wrq);
 	
-	if((received_size = recvfrom(sfd,WRQ_response,data_size,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive packet # into buffer
+	if((received_size = recvfrom(sfd,WRQ_response,DEFAULT_DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive response packet into buffer
 			perror("Unable to receive ack:");
+			close(sfd);
 			exit(EXIT_FAILURE);
 	}
 	
-	if(WRQ_response[0] == 0 && WRQ_response[1] == 4 && WRQ_response[2] == 0 && WRQ_response[3] == 0){ // Check if WRQ accepted ie the ACK has Block # = 0
-		fprintf(stdout, "Ready to send file\n");
-	} else {
-		fprintf(stderr, "Wrong ack received, something went wrong\n");
+	if(WRQ_response[0] == 0 && WRQ_response[1] == 6){ // Is OACK packet
+		if(strncmp(WRQ_response+3+strlen("blksize"), blk_size, strlen(blk_size))){ // Check if block size option has been accepted
+			fprintf(stderr,"Blocksize has been refused by server\n");
+			close(sfd);
+			exit(EXIT_FAILURE);
+		}
+	}
+	else if(WRQ_response[0] == 0 && WRQ_response[1] == 4 && WRQ_response[2] == 0 && WRQ_response[3] == 0){ // Is ACK packet with block # of 0
+		fprintf(stderr, "*** ERROR: Block size option may not have been implemented in the server ***\n");
+		*data_size = DEFAULT_DATA_LENGTH;
+		fprintf(stdout, "Ready to send file with block size of 512 bytes\n\n");
+	}
+	else if(WRQ_response[0]==0 && WRQ_response[1]==5){ // Check for error packet
+		fprintf(stderr,"Received error packet with code %d%d\n",WRQ_response[2],WRQ_response[3]);
+		fwrite(WRQ_response+4, sizeof(char),received_size-5, stdout);  // Print error packet message
+		close(sfd);
 		exit(EXIT_FAILURE);
 	}
+	
+	else {
+		fprintf(stderr, "Cannot perform writing to server\n");
+		close(sfd);
+		exit(EXIT_FAILURE);
+	}
+	
+	free(WRQ_response);
 }
 
 
@@ -213,6 +243,7 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_size
 	
 	if(file == NULL){
 		perror("Could not open specified file:");
+		close(sfd);
 		exit(EXIT_FAILURE);
 	}
 	
@@ -230,20 +261,24 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_size
 		
 		if(sendto(sfd,DATA_packet,read_size+4,0,srv_addr->ai_addr,srv_addr->ai_addrlen) == -1){ // Send packet to server
 			fprintf(stderr,"Couldn't send data\n");
+			close(sfd);
+			exit(EXIT_FAILURE);
 		}
 		
 		if((received_size = recvfrom(sfd,ACK_packet,data_size,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive ack packet into buffer
 			perror("Unable to receive ack:");
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 		
-		if(ACK_packet[0]=='0' && ACK_packet[1]=='5'){ // Check for error packet
+		if(ACK_packet[0]==0 && ACK_packet[1]==5){ // Check for error packet
 			fprintf(stderr,"Received error packet with code %d%d\n",ACK_packet[2],ACK_packet[3]);
 			fwrite(ACK_packet+4, sizeof(char),received_size-5, stdout);  // Print error packet message
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 
-		printf("Successfully sent packet n°%d%d\n",ACK_packet[2],ACK_packet[3]);
+		fprintf(stdout,"Successfully sent packet n°%d%d\n",ACK_packet[2],ACK_packet[3]);
 		
 		packet_count++;
 		
