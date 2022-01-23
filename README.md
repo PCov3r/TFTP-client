@@ -1,7 +1,12 @@
 # 📁 TFTP-client
 
 Implémentation d'un client TFTP simple, réalisée dans le cadre du TP2 de majeur Informatique de l'ENSEA.
-<br> <br>
+<br>
+Protocole mis en place par les RFC:
+* [1350](https://datatracker.ietf.org/doc/html/rfc1350)
+* [2348](https://datatracker.ietf.org/doc/html/rfc2348)
+* [1782](https://datatracker.ietf.org/doc/html/rfc1782)
+
 
 ## Client TFTP
 Ce dernier a besoin au minimum de l'adresse IP du serveur vers lequel la requête est dirigée et du fichier à envoyer/recevoir.
@@ -18,7 +23,7 @@ Un timeout de 30s a également été ajouté sur la socket, pour éviter que l'u
 
 
 Les programmes de base, sans l'option blksize se trouvent [ici](/Basic_implementation)
-<br> <br>
+
 
 ## Test
 Les tests ont été conduits sur un [serveur local](https://mohammadthalif.wordpress.com/2010/03/05/installing-and-testing-tftpd-in-ubuntudebian/) dont l'option `blksize` n'était pas implémentée. Ainsi, les tests avec cette option n'ont pu être effectués.
