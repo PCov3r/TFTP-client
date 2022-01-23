@@ -11,6 +11,13 @@
 #define DEFAULTPORT "69"
 const char delim[1] = ":";
 
+struct timeval snd_timeout = {
+    .tv_sec = 30
+};
+struct timeval rcv_timeout = {
+    .tv_sec = 30
+};
+
 int TFTPconnect(struct addrinfo **srv_addr, char* ip_addr, char* port);
 int makeRRQ(char *filename, char** rrq);
 void sendRRQ(struct addrinfo *srv_addr, int sfd, char *filename);
@@ -92,6 +99,9 @@ int TFTPconnect(struct addrinfo **srv_addr, char* ip_addr, char* port){
 		fprintf(stderr,"erreur");
 		exit(EXIT_FAILURE);
 	}
+	/* Add timeout */
+	setsockopt(sfd, SOL_SOCKET, SO_SNDTIMEO, &snd_timeout, sizeof(snd_timeout)); 
+	setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &rcv_timeout, sizeof(rcv_timeout));
 	
 	return sfd;
 }
@@ -173,7 +183,7 @@ void sendRRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_s
 	free(rrq);
 	
 	if((received_size = recvfrom(sfd,RRQ_response,DEFAULT_DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive response packet into buffer
-			perror("Unable to receive ack:");
+			perror("Unable to receive ack");
 			close(sfd);
 			exit(EXIT_FAILURE);
 	}
@@ -185,7 +195,7 @@ void sendRRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_s
 			exit(EXIT_FAILURE);
 		}
 		if(sendto(sfd,ACK_packet,ACK_LENGTH,0,srv_addr->ai_addr,srv_addr->ai_addrlen) == -1){ // Send ACK packet to confirm block size
-			perror("Could not send ACK:");
+			perror("Could not send ACK");
 			close(sfd);
 			exit(EXIT_FAILURE);
 		}
@@ -234,7 +244,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 	file = fopen(filename, "w"); // Open the file in write mode / create if it does not exist
 	
 	if(file == NULL){
-		perror("Could not open specified file:");
+		perror("Could not open specified file");
 		close(sfd);
 		exit(EXIT_FAILURE);
 	}
@@ -243,7 +253,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 	do{
 	
 		if((received_size = recvfrom(sfd,DATA_packet,data_size,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive packet into buffer
-			perror("Unable to receive data:");
+			perror("Unable to receive data");
 			close(sfd);
 			exit(EXIT_FAILURE);
 		}
@@ -257,7 +267,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 		
 		written_count = fwrite(DATA_packet+4, sizeof(char), received_size-4,file); // Write the data part from data_packet into file 
 		if(written_count != received_size-4){ 
-			perror("Could not write data into file:");
+			perror("Could not write data into file");
 			close(sfd);
 			exit(EXIT_FAILURE);
 		}
@@ -266,7 +276,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 		ACK_packet[3]=DATA_packet[3];
 		
 		if(sendto(sfd,ACK_packet,ACK_LENGTH,0,srv_addr->ai_addr,srv_addr->ai_addrlen) == -1){ // Send ACK packet
-			perror("Could not send ACK:");
+			perror("Could not send ACK");
 		}
 		
 		fprintf(stdout,"Successfully received packet n°%d%d\n",ACK_packet[2],ACK_packet[3]);
@@ -275,6 +285,8 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 	
 	free(DATA_packet);
 	fclose(file);
+	
+	fprintf(stdout, "\n*** Successfully received entire file ***\n");
 	
 }
 
