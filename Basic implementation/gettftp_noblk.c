@@ -153,7 +153,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename){
 			exit(EXIT_FAILURE);
 		}
 		
-		if(DATA_packet[0]=='0' && DATA_packet[1]=='5'){ // Check for error packet
+		if(DATA_packet[0]==0 && DATA_packet[1]==5){ // Check for error packet
 			fprintf(stderr,"Received error packet with code %d%d\n",DATA_packet[2],DATA_packet[3]);
 			fwrite(DATA_packet+4, sizeof(char),received_size-5, stdout);  // Print error packet message
 			close(sfd);
