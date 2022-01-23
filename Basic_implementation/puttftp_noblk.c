@@ -112,7 +112,7 @@ void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename){
 	wrq_length = makeWRQ(filename, &wrq); // Form a WRQ
 
 	if(sendto(sfd, wrq, wrq_length, 0, (struct sockaddr *) srv_addr->ai_addr, srv_addr->ai_addrlen) == -1){ // Send WRQ
-		perror("CLIENT: sendto");
+		perror("Unable to send data");
 		close(sfd);
 		exit(EXIT_FAILURE);
 	}
