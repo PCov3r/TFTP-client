@@ -183,7 +183,7 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename){
 			exit(EXIT_FAILURE);
 		}
 		
-		if(ACK_packet[0]=='0' && ACK_packet[1]=='5'){ // Check for error packet
+		if(ACK_packet[0]==0 && ACK_packet[1]==5){ // Check for error packet
 			fprintf(stderr,"Received error packet with code %d%d\n",ACK_packet[2],ACK_packet[3]);
 			fwrite(ACK_packet+4, sizeof(char),received_size-5, stdout);  // Print error packet message
 			close(sfd);
