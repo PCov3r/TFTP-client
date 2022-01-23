@@ -113,6 +113,7 @@ void sendRRQ(struct addrinfo *srv_addr, int sfd, char *filename){
 
 	if(sendto(sfd, rrq, rrq_length, 0, (struct sockaddr *) srv_addr->ai_addr, srv_addr->ai_addrlen) == -1){ // Send the RRQ
 			perror("CLIENT: sendto");
+			close(sfd);
 			exit(EXIT_FAILURE);
 	}
 	free(rrq);
@@ -139,6 +140,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename){
 	
 	if(file == NULL){
 		perror("Could not open specified file:");
+		close(sfd);
 		exit(EXIT_FAILURE);
 	}
 	
@@ -147,18 +149,21 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename){
 	
 		if((received_size = recvfrom(sfd,DATA_packet,DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive packet into buffer
 			perror("Unable to receive data:");
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 		
 		if(DATA_packet[0]=='0' && DATA_packet[1]=='5'){ // Check for error packet
 			fprintf(stderr,"Received error packet with code %d%d\n",DATA_packet[2],DATA_packet[3]);
 			fwrite(DATA_packet+4, sizeof(char),received_size-5, stdout);  // Print error packet message
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 		
 		written_count = fwrite(DATA_packet+4, sizeof(char), received_size-4,file); // Write the data part from data_packet into file 
 		if(written_count != received_size-4){ 
 			perror("Could not write data into file:");
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 		
