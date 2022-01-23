@@ -14,7 +14,7 @@ const char delim[1] = ":";
 int TFTPconnect(struct addrinfo **srv_addr, char* ip_addr, char* port);
 int makeRRQ(char *filename, char** rrq);
 void sendRRQ(struct addrinfo *srv_addr, int sfd, char *filename);
-void sendRRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_size);
+void sendRRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_size, int* data_size);
 void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_size);
 
 
@@ -43,14 +43,17 @@ int main ( int argc , char * argv[] ) {
 	
     sfd = TFTPconnect(&srv_addr, ip, port); // Establish connection to the server using the given arguments
 	
-	if(argc > 3){ // Contains block size
+	if(argc > 3){ // Contains block size arg
 		blk_size= atoi(argv[3]);
+		
 		if((blk_size < 8) || (blk_size > 65464)){
-			fprintf(stderr, "Block size must be between 8 and 65464 bytes\n");
+			fprintf(stderr, "Error: block size must be between 8 and 65464 bytes\n");
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
-		data_size = blk_size + 4;
-		sendRRQ_blk(srv_addr, sfd, filename, argv[3]);
+		
+		data_size = blk_size + 4; // DATA packet size is block size + 4
+		sendRRQ_blk(srv_addr, sfd, filename, argv[3], &data_size); // RRQ with blksize flag
 	} else {
 		data_size = DEFAULT_DATA_LENGTH;
 		sendRRQ(srv_addr, sfd, filename);
@@ -129,6 +132,7 @@ void sendRRQ(struct addrinfo *srv_addr, int sfd, char *filename){
 
 	if(sendto(sfd, rrq, rrq_length, 0, (struct sockaddr *) srv_addr->ai_addr, srv_addr->ai_addrlen) == -1){ // Send the RRQ
 			perror("CLIENT: sendto");
+			close(sfd);
 			exit(EXIT_FAILURE);
 	}
 	free(rrq);
@@ -142,9 +146,14 @@ void sendRRQ(struct addrinfo *srv_addr, int sfd, char *filename){
  +------+---~~---+---+---~~---+---+---~~---+---+---~~---+---+
 */
 
-void sendRRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_size){
+void sendRRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_size, int* data_size){
 	char* rrq;
 	int rrq_length;
+	char* RRQ_response;
+	char ACK_packet[ACK_LENGTH] = {0, 4, 0, 0};
+	int received_size;
+	
+	RRQ_response = malloc(DEFAULT_DATA_LENGTH*sizeof(char)); 
 	
 	rrq_length = makeRRQ(filename, &rrq); // Form a RRQ
 	rrq = realloc(rrq, rrq_length+(strlen(blk_size)+9)*sizeof(char)); // Add memory for blk option
@@ -156,12 +165,54 @@ void sendRRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_s
 	rrq_length += (strlen(blk_size)+1)*sizeof(char);
 	
 
-	if(sendto(sfd, rrq, rrq_length, 0, (struct sockaddr *) srv_addr->ai_addr, srv_addr->ai_addrlen) == -1){ // Send the RRQ
+	if(sendto(sfd, rrq, rrq_length, 0, (struct sockaddr *) srv_addr->ai_addr, srv_addr->ai_addrlen) == -1){ // Send RRQ
 			perror("CLIENT: sendto");
+			close(sfd);
 			exit(EXIT_FAILURE);
 	}
 	free(rrq);
+	
+	if((received_size = recvfrom(sfd,RRQ_response,DEFAULT_DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive response packet into buffer
+			perror("Unable to receive ack:");
+			close(sfd);
+			exit(EXIT_FAILURE);
+	}
+	
+	if(RRQ_response[0] == 0 && RRQ_response[1] == 6){ // Is OACK packet
+		if(strncmp(RRQ_response+3+strlen("blksize"), blk_size, strlen(blk_size))){ // Check if block size option has been accepted
+			fprintf(stderr,"Blocksize has been refused by server\n");
+			close(sfd);
+			exit(EXIT_FAILURE);
+		}
+		if(sendto(sfd,ACK_packet,ACK_LENGTH,0,srv_addr->ai_addr,srv_addr->ai_addrlen) == -1){ // Send ACK packet to confirm block size
+			perror("Could not send ACK:");
+			close(sfd);
+			exit(EXIT_FAILURE);
+		}
+	}
+	else if(RRQ_response[0]==0 && RRQ_response[1]==3){ // Is DATA packet
+		fprintf(stderr, "*** ERROR: Block size option may not have been implemented in the server ***\n");
+		*data_size = DEFAULT_DATA_LENGTH;
+		fprintf(stdout, "Ready to receive file with block size of 512 bytes\n");	
+		fprintf(stdout, "Please wait as this may take a few seconds\n\n");	
+		/* Flawed implementation: we need to wait for server to send first packet again */
+	}
+	else if(RRQ_response[0]==0 && RRQ_response[1]==5){ // Check for error packet
+		fprintf(stderr,"Received error packet with code %d%d\n",RRQ_response[2],RRQ_response[3]);
+		fwrite(RRQ_response+4, sizeof(char),received_size-5, stdout);  // Print error packet message
+		close(sfd);
+		exit(EXIT_FAILURE);
+	}
+	else {
+		fprintf(stderr, "Blocksize option has been refused or is not implemented on the server\n");
+		close(sfd);
+		exit(EXIT_FAILURE);
+	}
+	
+	free(RRQ_response);
 }
+	
+	
 
 
 /* Receive the data from the read request */
@@ -176,7 +227,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 	int received_size;
 	int written_count;
 	FILE *file;
-	char*   DATA_packet;
+	char* DATA_packet;
 	char ACK_packet[ACK_LENGTH] = {0, 4, 0, 0};
 	
 	DATA_packet = malloc(data_size*sizeof(char)); 
@@ -184,6 +235,7 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 	
 	if(file == NULL){
 		perror("Could not open specified file:");
+		close(sfd);
 		exit(EXIT_FAILURE);
 	}
 	
@@ -192,18 +244,21 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 	
 		if((received_size = recvfrom(sfd,DATA_packet,data_size,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive packet into buffer
 			perror("Unable to receive data:");
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 		
-		if(DATA_packet[0]=='0' && DATA_packet[1]=='5'){ // Check for error packet
+		if(DATA_packet[0]==0 && DATA_packet[1]==5){ // Check for error packet
 			fprintf(stderr,"Received error packet with code %d%d\n",DATA_packet[2],DATA_packet[3]);
 			fwrite(DATA_packet+4, sizeof(char),received_size-5, stdout);  // Print error packet message
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 		
 		written_count = fwrite(DATA_packet+4, sizeof(char), received_size-4,file); // Write the data part from data_packet into file 
 		if(written_count != received_size-4){ 
 			perror("Could not write data into file:");
+			close(sfd);
 			exit(EXIT_FAILURE);
 		}
 		
@@ -213,6 +268,8 @@ void receive_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_s
 		if(sendto(sfd,ACK_packet,ACK_LENGTH,0,srv_addr->ai_addr,srv_addr->ai_addrlen) == -1){ // Send ACK packet
 			perror("Could not send ACK:");
 		}
+		
+		fprintf(stdout,"Successfully received packet n°%d%d\n",ACK_packet[2],ACK_packet[3]);
 		
 	}while(received_size==data_size); // While there is still incoming data (ie the DATA packet has full size)
 	
