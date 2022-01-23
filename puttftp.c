@@ -11,6 +11,13 @@
 #define DEFAULTPORT "69"
 const char delim[1] = ":";
 
+struct timeval snd_timeout = {
+    .tv_sec = 30
+};
+struct timeval rcv_timeout = {
+    .tv_sec = 30
+};
+
 int TFTPconnect(struct addrinfo **srv_addr, char* ip_addr, char* port);
 int makeWRQ(char *filename, char** wrq);
 void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename);
@@ -91,6 +98,9 @@ int TFTPconnect(struct addrinfo **srv_addr, char* ip_addr, char* port){
 		fprintf(stderr,"erreur");
 		exit(EXIT_FAILURE);
 	}
+	/* Add timeout */
+	setsockopt(sfd, SOL_SOCKET, SO_SNDTIMEO, &snd_timeout, sizeof(snd_timeout));
+	setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &rcv_timeout, sizeof(rcv_timeout));
 	
 	return sfd;
 }
@@ -138,7 +148,7 @@ void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename){
 	free(wrq);
 	
 	if((received_size = recvfrom(sfd,WRQ_response,DEFAULT_DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive packet # into buffer
-			perror("Unable to receive ack:");
+			perror("Unable to receive ack");
 			close(sfd);
 			exit(EXIT_FAILURE);
 	}
@@ -186,7 +196,7 @@ void sendWRQ_blk(struct addrinfo *srv_addr, int sfd, char *filename, char* blk_s
 	free(wrq);
 	
 	if((received_size = recvfrom(sfd,WRQ_response,DEFAULT_DATA_LENGTH,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive response packet into buffer
-			perror("Unable to receive ack:");
+			perror("Unable to receive ack");
 			close(sfd);
 			exit(EXIT_FAILURE);
 	}
@@ -242,7 +252,7 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_size
 	file = fopen(filename, "r"); // Open file in read mode
 	
 	if(file == NULL){
-		perror("Could not open specified file:");
+		perror("Could not open specified file");
 		close(sfd);
 		exit(EXIT_FAILURE);
 	}
@@ -266,7 +276,7 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_size
 		}
 		
 		if((received_size = recvfrom(sfd,ACK_packet,data_size,0,srv_addr->ai_addr,&srv_addr->ai_addrlen)) == -1){ // Receive ack packet into buffer
-			perror("Unable to receive ack:");
+			perror("Unable to receive ack");
 			close(sfd);
 			exit(EXIT_FAILURE);
 		}
@@ -287,6 +297,8 @@ void send_data(struct addrinfo *srv_addr, int sfd, char* filename, int data_size
 	free(DATA_packet);
 	free(ACK_packet);
 	fclose(file);
+	
+	fprintf(stdout, "\nSuccessfully sent entire file\n");
 	
 }
 
