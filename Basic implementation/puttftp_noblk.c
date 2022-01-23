@@ -77,8 +77,8 @@ int TFTPconnect(struct addrinfo **srv_addr, char* ip_addr, char* port){
 }
 
 
-/* Make a RRQ */
-/* RRQ format:
+/* Make a WRQ */
+/* WRQ format:
  2 bytes     string    1 byte     string   1 byte
  ------------------------------------------------
 |   02   |  Filename  |   0  |    Mode    |   0  |
@@ -101,7 +101,7 @@ int makeWRQ(char *filename, char** wrq){
 }
 
 
-/* Send a read request to the server */
+/* Send a write request to the server */
 
 void sendWRQ(struct addrinfo *srv_addr, int sfd, char *filename){
 	char* wrq;
