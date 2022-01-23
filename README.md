@@ -1,6 +1,6 @@
-# TFTP-client
+# 📁 TFTP-client
 
-Implémentation d'un client TFTP simple.
+Implémentation d'un client TFTP simple, réalisée dans le cadre du TP2 de majeur Informatique de l'ENSEA.
 <br> <br>
 
 ## Client TFTP
@@ -21,5 +21,5 @@ Les programmes de base, sans l'option blksize se trouvent [ici](/Basic_implement
 ## Test
 Les tests ont été conduits sur un [serveur local](https://mohammadthalif.wordpress.com/2010/03/05/installing-and-testing-tftpd-in-ubuntudebian/) dont l'option `blksize` n'était pas implémentée. Ainsi, les tests avec cette option n'ont pu être effectués.
 
-Des captures wireshark des différentes reuêtes, avec et sans l'option `blksize` peuvent être trouvées [ici]()
+Des captures wireshark des différentes reuêtes, avec et sans l'option `blksize` peuvent être trouvées [ici](Wireshark_captures)
 
