@@ -13,6 +13,8 @@ On appelle ainsi le programme comme suit: `./xxxtftp addresse[:port] fichier [bl
 
 Si aucun port n'est spécifié, le port par défaut **69** est utilisé. <br>
 Si aucune taille de bloc n'est spécifiée, la taille par défaut **512o** est utilisée.
+<br>
+Un timeout de 30s a également été ajouté sur la socket, pour éviter que l'utilisateur n'attende en vain.
 
 
 Les programmes de base, sans l'option blksize se trouvent [ici](/Basic_implementation)
@@ -21,5 +23,5 @@ Les programmes de base, sans l'option blksize se trouvent [ici](/Basic_implement
 ## Test
 Les tests ont été conduits sur un [serveur local](https://mohammadthalif.wordpress.com/2010/03/05/installing-and-testing-tftpd-in-ubuntudebian/) dont l'option `blksize` n'était pas implémentée. Ainsi, les tests avec cette option n'ont pu être effectués.
 
-Des captures Wireshark des différentes reuêtes, avec et sans l'option `blksize` peuvent être trouvées [ici](Wireshark_captures).
+Des captures Wireshark des différentes requêtes, avec et sans l'option `blksize` peuvent être trouvées [ici](Wireshark_captures).
 
